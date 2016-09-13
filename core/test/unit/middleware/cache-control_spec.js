@@ -1,5 +1,3 @@
-/*globals describe, beforeEach, afterEach, it*/
-/*jshint expr:true*/
 var should          = require('should'),
     sinon           = require('sinon'),
     middleware      = require('../../../server/middleware').middleware;

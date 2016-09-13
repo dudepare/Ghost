@@ -1,5 +1,3 @@
-/*global describe, it */
-/*jshint expr:true*/
 // # Module tests
 // This tests using Ghost as an npm module
 var should     = require('should'),

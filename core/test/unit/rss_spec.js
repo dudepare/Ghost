@@ -1,5 +1,3 @@
-/*globals describe, before, beforeEach, afterEach, it*/
-/*jshint expr:true*/
 var should          = require('should'),
     sinon           = require('sinon'),
     rewire          = require('rewire'),
@@ -15,9 +13,6 @@ var should          = require('should'),
 
     configUtils     = require('../utils/configUtils');
 
-// To stop jshint complaining
-should.equal(true, true);
-
 // Helper function to prevent unit tests
 // from failing via timeout when they
 // should just immediately fail
@@ -31,7 +26,8 @@ describe('RSS', function () {
     var sandbox, req, res, posts;
 
     before(function () {
-        posts = _.filter(testUtils.DataGenerator.forKnex.posts, function filter(post) {
+        posts = _.cloneDeep(testUtils.DataGenerator.forKnex.posts);
+        posts = _.filter(posts, function filter(post) {
             return post.status === 'published' && post.page === false;
         });
 
@@ -417,7 +413,7 @@ describe('RSS', function () {
 
             rss(req, res, function (err) {
                 should.exist(err);
-                err.code.should.eql(404);
+                err.statusCode.should.eql(404);
                 res.redirect.called.should.be.false();
                 res.render.called.should.be.false();
                 done();
@@ -434,7 +430,7 @@ describe('RSS', function () {
 
             rss(req, res, function (err) {
                 should.exist(err);
-                err.code.should.eql(404);
+                err.statusCode.should.eql(404);
                 res.redirect.called.should.be.false();
                 res.render.called.should.be.false();
                 done();

@@ -1,25 +1,20 @@
-/*globals describe, before, beforeEach, afterEach, after, it */
-/*jshint expr:true*/
 var testUtils   = require('../utils/index'),
     should      = require('should'),
     sinon       = require('sinon'),
     Promise     = require('bluebird'),
+    moment      = require('moment'),
     assert      = require('assert'),
     _           = require('lodash'),
-    rewire      = require('rewire'),
     validator   = require('validator'),
 
     // Stuff we are testing
     db              = require('../../server/data/db'),
-    config          = require('../../server/config'),
     versioning      = require('../../server/data/schema').versioning,
-    defaultConfig   = rewire('../../../config.example')[process.env.NODE_ENV],
-    migration       = rewire('../../server/data/migration'),
     exporter        = require('../../server/data/export'),
     importer        = require('../../server/data/import'),
     DataImporter    = require('../../server/data/import/data-importer'),
 
-    DEF_DB_VERSION  = versioning.getDefaultDatabaseVersion(),
+    DEF_DB_VERSION  = versioning.getNewestDatabaseVersion(),
     knex = db.knex,
     sandbox = sinon.sandbox.create();
 
@@ -36,12 +31,6 @@ describe('Import', function () {
 
     describe('Resolves', function () {
         beforeEach(testUtils.setup());
-        beforeEach(function () {
-            var newConfig = _.extend({}, config, defaultConfig);
-
-            migration.__get__('config', newConfig);
-            config.set(newConfig);
-        });
 
         it('resolves DataImporter', function (done) {
             var importStub = sandbox.stub(DataImporter, 'importData', function () {
@@ -109,7 +98,7 @@ describe('Import', function () {
                 // Check we imported all posts_tags associations
                 importResult.data.data.posts_tags.length.should.equal(2);
                 // Check the post_tag.tag_id was updated when we removed duplicate tag
-                _.all(importResult.data.data.posts_tags, function (postTag) {
+                _.every(importResult.data.data.posts_tags, function (postTag) {
                     return postTag.tag_id !== 2;
                 });
 
@@ -157,7 +146,7 @@ describe('Import', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 // test tags
                 tags.length.should.equal(exportData.data.tags.length, 'no new tags');
@@ -168,7 +157,7 @@ describe('Import', function () {
 
         it('safely imports data, from 001', function (done) {
             var exportData,
-                timestamp = 1349928000000;
+                timestamp = moment().startOf('day').valueOf(); // no ms
 
             testUtils.fixtures.loadExportFixture('export-001').then(function (exported) {
                 exportData = exported;
@@ -213,10 +202,10 @@ describe('Import', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 // activeTheme should NOT have been overridden
-                _.findWhere(settings, {key: 'activeTheme'}).value.should.equal('casper', 'Wrong theme');
+                _.find(settings, {key: 'activeTheme'}).value.should.equal('casper', 'Wrong theme');
 
                 // test tags
                 tags.length.should.equal(exportData.data.tags.length, 'no new tags');
@@ -226,9 +215,9 @@ describe('Import', function () {
                 // in MySQL we're returned a date object.
                 // We pass the returned post always through the date object
                 // to ensure the return is consistent for all DBs.
-                assert.equal(new Date(posts[0].created_at).getTime(), timestamp);
-                assert.equal(new Date(posts[0].updated_at).getTime(), timestamp);
-                assert.equal(new Date(posts[0].published_at).getTime(), timestamp);
+                assert.equal(moment(posts[0].created_at).valueOf(), timestamp);
+                assert.equal(moment(posts[0].updated_at).valueOf(), timestamp);
+                assert.equal(moment(posts[0].published_at).valueOf(), timestamp);
 
                 done();
             }).catch(done);
@@ -274,7 +263,7 @@ describe('Import', function () {
 
                     // test settings
                     settings.length.should.be.above(0, 'Wrong number of settings');
-                    _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                    _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                     done();
                 });
@@ -319,7 +308,7 @@ describe('Import', function () {
 
                     // test settings
                     settings.length.should.be.above(0, 'Wrong number of settings');
-                    _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                    _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                     done();
                 });
@@ -332,7 +321,7 @@ describe('Import', function () {
 
         it('safely imports data from 002', function (done) {
             var exportData,
-                timestamp = 1349928000000;
+                timestamp = moment().startOf('day').valueOf(); // no ms
 
             testUtils.fixtures.loadExportFixture('export-002').then(function (exported) {
                 exportData = exported;
@@ -377,10 +366,10 @@ describe('Import', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 // activeTheme should NOT have been overridden
-                _.findWhere(settings, {key: 'activeTheme'}).value.should.equal('casper', 'Wrong theme');
+                _.find(settings, {key: 'activeTheme'}).value.should.equal('casper', 'Wrong theme');
 
                 // test tags
                 tags.length.should.equal(exportData.data.tags.length, 'no new tags');
@@ -390,9 +379,9 @@ describe('Import', function () {
                 // in MySQL we're returned a date object.
                 // We pass the returned post always through the date object
                 // to ensure the return is consistant for all DBs.
-                assert.equal(new Date(posts[0].created_at).getTime(), timestamp);
-                assert.equal(new Date(posts[0].updated_at).getTime(), timestamp);
-                assert.equal(new Date(posts[0].published_at).getTime(), timestamp);
+                assert.equal(moment(posts[0].created_at).valueOf(), timestamp);
+                assert.equal(moment(posts[0].updated_at).valueOf(), timestamp);
+                assert.equal(moment(posts[0].published_at).valueOf(), timestamp);
 
                 done();
             }).catch(done);
@@ -437,7 +426,7 @@ describe('Import', function () {
 
                     // test settings
                     settings.length.should.be.above(0, 'Wrong number of settings');
-                    _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                    _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                     done();
                 });
@@ -481,7 +470,7 @@ describe('Import', function () {
 
                     // test settings
                     settings.length.should.be.above(0, 'Wrong number of settings');
-                    _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                    _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                     done();
                 });
@@ -531,7 +520,7 @@ describe('Import', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 done();
             }).catch(done);
@@ -721,7 +710,7 @@ describe('Import (new test structure)', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 done();
             }).catch(done);
@@ -946,7 +935,7 @@ describe('Import (new test structure)', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 done();
             }).catch(done);
@@ -1183,7 +1172,7 @@ describe('Import (new test structure)', function () {
 
                 // test settings
                 settings.length.should.be.above(0, 'Wrong number of settings');
-                _.findWhere(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
+                _.find(settings, {key: 'databaseVersion'}).value.should.equal(DEF_DB_VERSION, 'Wrong database version');
 
                 done();
             }).catch(done);

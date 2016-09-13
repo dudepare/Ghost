@@ -1,5 +1,3 @@
-/*globals describe, before, beforeEach, afterEach, it*/
-/*jshint expr:true*/
 var should           = require('should'),
     sinon            = require('sinon'),
     Promise          = require('bluebird'),
@@ -29,15 +27,12 @@ var should           = require('should'),
         expires: Date.now() - globalUtils.ONE_DAY_MS
     };
 
-// To stop jshint complaining
-should.equal(true, true);
-
 describe('Auth Strategies', function () {
     var next;
 
-    before(function (done) {
+    before(function () {
         // Loads all the models
-        Models.init().then(done).catch(done);
+        Models.init();
     });
 
     beforeEach(function () {

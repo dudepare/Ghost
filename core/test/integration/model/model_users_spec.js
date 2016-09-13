@@ -1,5 +1,3 @@
-/*globals describe, before, beforeEach, afterEach, it*/
-/*jshint expr:true*/
 var testUtils   = require('../../utils'),
     should      = require('should'),
     Promise     = require('bluebird'),
@@ -9,6 +7,7 @@ var testUtils   = require('../../utils'),
 
     // Stuff we are testing
     utils       = require('../../../server/utils'),
+    gravatar    = require('../../../server/utils/gravatar'),
     UserModel   = require('../../../server/models/user').User,
     RoleModel   = require('../../../server/models/role').Role,
     events      = require('../../../server/events'),
@@ -38,10 +37,6 @@ describe('User Model', function run() {
         it('can add first', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[0];
 
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
-
             UserModel.add(userData, context).then(function (createdUser) {
                 should.exist(createdUser);
                 createdUser.has('uuid').should.equal(true);
@@ -55,10 +50,6 @@ describe('User Model', function run() {
         it('shortens slug if possible', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[2];
 
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
-
             UserModel.add(userData, context).then(function (createdUser) {
                 should.exist(createdUser);
                 createdUser.has('slug').should.equal(true);
@@ -69,10 +60,6 @@ describe('User Model', function run() {
 
         it('does not short slug if not possible', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[2];
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             UserModel.add(userData, context).then(function (createdUser) {
                 should.exist(createdUser);
@@ -99,10 +86,6 @@ describe('User Model', function run() {
         it('does NOT lowercase email', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[2];
 
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
-
             UserModel.add(userData, context).then(function (createdUser) {
                 should.exist(createdUser);
                 createdUser.has('uuid').should.equal(true);
@@ -114,7 +97,7 @@ describe('User Model', function run() {
         it('can find gravatar', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4];
 
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
+            sandbox.stub(gravatar, 'lookup', function (userData) {
                 userData.image = 'http://www.gravatar.com/avatar/2fab21a4c4ed88e76add10650c73bae1?d=404';
                 return Promise.resolve(userData);
             });
@@ -132,7 +115,7 @@ describe('User Model', function run() {
         it('can handle no gravatar', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[0];
 
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
+            sandbox.stub(gravatar, 'lookup', function (userData) {
                 return Promise.resolve(userData);
             });
 
@@ -142,6 +125,20 @@ describe('User Model', function run() {
                 should.not.exist(createdUser.image);
                 done();
             }).catch(done);
+        });
+
+        it('can set password of only numbers', function () {
+            var userData = testUtils.DataGenerator.forModel.users[0];
+
+            // avoid side-effects!
+            userData = _.cloneDeep(userData);
+            userData.password = 12345678;
+
+            // mocha supports promises
+            return UserModel.add(userData, context).then(function (createdUser) {
+                should.exist(createdUser);
+                // cannot validate password
+            });
         });
 
         it('can find by email and is case insensitive', function (done) {
@@ -269,7 +266,7 @@ describe('User Model', function run() {
             }).catch(done);
         });
 
-        it('can findPage with limit all', function (done) {
+        it('can findPage with limit all', function () {
             return testUtils.fixtures.createExtraUsers().then(function () {
                 return UserModel.findPage({limit: 'all'});
             }).then(function (results) {
@@ -277,9 +274,7 @@ describe('User Model', function run() {
                 results.meta.pagination.limit.should.equal('all');
                 results.meta.pagination.pages.should.equal(1);
                 results.users.length.should.equal(7);
-
-                done();
-            }).catch(done);
+            });
         });
 
         it('can NOT findPage for a page that overflows the datatype', function (done) {
@@ -310,7 +305,7 @@ describe('User Model', function run() {
             }).catch(done);
         });
 
-        it('can findOne by role name', function (done) {
+        it('can findOne by role name', function () {
             return testUtils.fixtures.createExtraUsers().then(function () {
                 return Promise.join(UserModel.findOne({role: 'Owner'}), UserModel.findOne({role: 'Editor'}));
             }).then(function (results) {
@@ -328,17 +323,11 @@ describe('User Model', function run() {
 
                 owner.roles[0].name.should.equal('Owner');
                 editor.roles[0].name.should.equal('Editor');
-
-                done();
-            }).catch(done);
+            });
         });
 
         it('can invite user', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4];
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             UserModel.add(_.extend({}, userData, {status: 'invited'}), context).then(function (createdUser) {
                 should.exist(createdUser);
@@ -355,10 +344,6 @@ describe('User Model', function run() {
 
         it('can add active user', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4];
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             RoleModel.findOne().then(function (role) {
                 userData.roles = [role.toJSON()];
@@ -377,6 +362,22 @@ describe('User Model', function run() {
 
                 done();
             }).catch(done);
+        });
+
+        it('can NOT add active user with invalid email address', function (done) {
+            var userData = _.clone(testUtils.DataGenerator.forModel.users[4]);
+
+            userData.email = 'invalidemailaddress';
+
+            RoleModel.findOne().then(function (role) {
+                userData.roles = [role.toJSON()];
+
+                return UserModel.add(userData, _.extend({}, context, {include: ['roles']}));
+            }).then(function () {
+                done(new Error('User was created with an invalid email address'));
+            }).catch(function () {
+                done();
+            });
         });
 
         it('can edit active user', function (done) {
@@ -402,13 +403,21 @@ describe('User Model', function run() {
             }).catch(done);
         });
 
+        it('can NOT set an invalid email address', function (done) {
+            var firstUser = 1;
+
+            UserModel.findOne({id: firstUser}).then(function (user) {
+                return user.edit({email: 'notanemailaddress'});
+            }).then(function () {
+                done(new Error('Invalid email address was accepted'));
+            }).catch(function () {
+                done();
+            });
+        });
+
         it('can edit invited user', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4],
                 userId;
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             UserModel.add(_.extend({}, userData, {status: 'invited'}), context).then(function (createdUser) {
                 should.exist(createdUser);
@@ -435,10 +444,6 @@ describe('User Model', function run() {
         it('can activate invited user', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4],
                 userId;
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             UserModel.add(_.extend({}, userData, {status: 'invited'}), context).then(function (createdUser) {
                 should.exist(createdUser);
@@ -494,10 +499,6 @@ describe('User Model', function run() {
         it('can destroy invited user', function (done) {
             var userData = testUtils.DataGenerator.forModel.users[4],
                 userId;
-
-            sandbox.stub(UserModel, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             UserModel.add(_.extend({}, userData, {status: 'invited'}), context).then(function (createdUser) {
                 should.exist(createdUser);

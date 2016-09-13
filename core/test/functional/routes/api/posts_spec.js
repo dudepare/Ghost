@@ -1,5 +1,3 @@
-/*global describe, it, before, after */
-/*jshint expr:true*/
 var testUtils     = require('../../../utils'),
     should        = require('should'),
     supertest     = require('supertest'),
@@ -95,7 +93,7 @@ describe('Post API', function () {
                     var jsonResponse = res.body;
                     should.exist(jsonResponse.posts);
                     testUtils.API.checkResponse(jsonResponse, 'posts');
-                    jsonResponse.posts.should.have.length(8);
+                    jsonResponse.posts.should.have.length(9);
                     testUtils.API.checkResponse(jsonResponse.posts[0], 'post');
                     testUtils.API.checkResponse(jsonResponse.meta.pagination, 'pagination');
                     done();
@@ -167,6 +165,28 @@ describe('Post API', function () {
                     done();
                 });
         });
+
+        it('can retrieve just scheduled posts', function (done) {
+            request.get(testUtils.API.getApiQuery('posts/?status=scheduled'))
+                .set('Authorization', 'Bearer ' + accesstoken)
+                .expect('Content-Type', /json/)
+                .expect('Cache-Control', testUtils.cacheRules.private)
+                .expect(200)
+                .end(function (err, res) {
+                    if (err) {
+                        return done(err);
+                    }
+
+                    should.not.exist(res.headers['x-cache-invalidate']);
+                    var jsonResponse = res.body;
+                    should.exist(jsonResponse.posts);
+                    testUtils.API.checkResponse(jsonResponse, 'posts');
+                    jsonResponse.posts.should.have.length(1);
+                    testUtils.API.checkResponse(jsonResponse.posts[0], 'post');
+                    testUtils.API.checkResponse(jsonResponse.meta.pagination, 'pagination');
+                    done();
+                });
+        });
     });
 
     // ## Read
@@ -192,7 +212,7 @@ describe('Post API', function () {
                     _.isBoolean(jsonResponse.posts[0].featured).should.eql(true);
                     _.isBoolean(jsonResponse.posts[0].page).should.eql(true);
                     jsonResponse.posts[0].author.should.be.a.Number();
-                    testUtils.API.isISO8601(jsonResponse.posts[0].created_at).should.be.true;
+                    testUtils.API.isISO8601(jsonResponse.posts[0].created_at).should.be.true();
                     jsonResponse.posts[0].created_by.should.be.a.Number();
                     // Tags aren't included by default
                     should.not.exist(jsonResponse.posts[0].tags);
@@ -365,6 +385,53 @@ describe('Post API', function () {
 
     // ## Add
     describe('Add', function () {
+        it('create and ensure dates are correct', function (done) {
+            var newPost = {posts: [{status: 'published', published_at: '2016-05-30T07:00:00.000Z'}]};
+
+            request.post(testUtils.API.getApiQuery('posts'))
+                .set('Authorization', 'Bearer ' + accesstoken)
+                .send(newPost)
+                .expect('Content-Type', /json/)
+                .expect('Cache-Control', testUtils.cacheRules.private)
+                .expect(201)
+                .end(function (err, res) {
+                    if (err) {
+                        return done(err);
+                    }
+
+                    res.body.posts[0].published_at.should.eql('2016-05-30T07:00:00.000Z');
+                    res.body.posts[0].published_at = '2016-05-30T09:00:00.000Z';
+
+                    request.put(testUtils.API.getApiQuery('posts/' + res.body.posts[0].id + '/'))
+                        .set('Authorization', 'Bearer ' + accesstoken)
+                        .send(res.body)
+                        .expect('Content-Type', /json/)
+                        .expect('Cache-Control', testUtils.cacheRules.private)
+                        .expect(200)
+                        .end(function (err, res) {
+                            if (err) {
+                                return done(err);
+                            }
+
+                            res.body.posts[0].published_at.should.eql('2016-05-30T09:00:00.000Z');
+
+                            request.get(testUtils.API.getApiQuery('posts/' + res.body.posts[0].id + '/'))
+                                .set('Authorization', 'Bearer ' + accesstoken)
+                                .expect('Content-Type', /json/)
+                                .expect('Cache-Control', testUtils.cacheRules.private)
+                                .expect(200)
+                                .end(function (err, res) {
+                                    if (err) {
+                                        return done(err);
+                                    }
+
+                                    res.body.posts[0].published_at.should.eql('2016-05-30T09:00:00.000Z');
+                                    done();
+                                });
+                        });
+                });
+        });
+
         it('can create a new draft, publish post, update post', function (done) {
             var newTitle = 'My Post',
                 newTagName = 'My Tag',
@@ -815,7 +882,7 @@ describe('Post API', function () {
 
                     var jsonResponse = res.body,
                         changedValue = 'My new Title';
-                    jsonResponse.posts[0].title.exist;
+                    should.exist(jsonResponse.posts[0].title);
                     jsonResponse.posts[0].testvalue = changedValue;
                     jsonResponse.posts[0].id = 99;
                     request.put(testUtils.API.getApiQuery('posts/99/'))
@@ -845,20 +912,16 @@ describe('Post API', function () {
             var deletePostId = 1;
             request.del(testUtils.API.getApiQuery('posts/' + deletePostId + '/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
-                .expect('Content-Type', /json/)
                 .expect('Cache-Control', testUtils.cacheRules.private)
-                .expect(200)
+                .expect(204)
                 .end(function (err, res) {
                     if (err) {
                         return done(err);
                     }
 
-                    var jsonResponse = res.body;
-                    should.exist(jsonResponse);
-                    should.exist(jsonResponse.posts);
+                    res.body.should.be.empty();
                     res.headers['x-cache-invalidate'].should.eql('/*');
-                    testUtils.API.checkResponse(jsonResponse.posts[0], 'post');
-                    jsonResponse.posts[0].id.should.eql(deletePostId);
+
                     done();
                 });
         });
@@ -908,18 +971,15 @@ describe('Post API', function () {
 
                     request.del(testUtils.API.getApiQuery('posts/' + draftPost.posts[0].id + '/'))
                         .set('Authorization', 'Bearer ' + accesstoken)
-                        .expect('Content-Type', /json/)
                         .expect('Cache-Control', testUtils.cacheRules.private)
-                        .expect(200)
+                        .expect(204)
                         .end(function (err, res) {
                             if (err) {
                                 return done(err);
                             }
 
-                            var jsonResponse = res.body;
-                            should.exist(jsonResponse);
-                            should.exist(jsonResponse.posts);
-                            testUtils.API.checkResponse(jsonResponse.posts[0], 'post');
+                            res.body.should.be.empty();
+
                             done();
                         });
                 });
